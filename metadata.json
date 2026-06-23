@@ -1,0 +1,6 @@
+{
+  "name": "剧本生短剧平台",
+  "description": "剧本生短剧创作与项目管理平台，包含了左侧边导航、项目列表筛选以及剧集概览看板。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
