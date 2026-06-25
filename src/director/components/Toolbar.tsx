@@ -4,9 +4,7 @@ import {
   ChevronDown,
   Circle,
   Cuboid,
-  Expand,
   Focus,
-  MousePointer2,
   Move3d,
   Redo2,
   Rotate3d,
@@ -190,10 +188,6 @@ export default function Toolbar({ onCapture, onCrowd }: { onCapture: () => void;
       )}
 
       <nav className="toolbar" aria-label="导演台工具栏">
-        <div className="tool-group subtle">
-          <ToolButton title="选择"><MousePointer2 size={17} /></ToolButton>
-        </div>
-        <div className="tool-divider" />
         <div className="tool-group">
           <TransformTool mode="translate" title="移动" shortcut="V" icon={<Move3d size={17} />} />
           <TransformTool mode="rotate" title="旋转" shortcut="R" icon={<Rotate3d size={17} />} />
@@ -214,7 +208,6 @@ export default function Toolbar({ onCapture, onCrowd }: { onCapture: () => void;
             <Focus size={18} /><ChevronDown size={10} />
           </ToolButton>
           <ToolButton title="截图" onClick={onCapture}><Camera size={18} /></ToolButton>
-          <ToolButton title="全屏" onClick={() => document.documentElement.requestFullscreen?.()}><Expand size={17} /></ToolButton>
         </div>
         <div className="tool-divider" />
         <div className="tool-group subtle">

@@ -188,15 +188,6 @@ function CameraProperties({ camera }: { camera: CameraObject }) {
   const actors = useMemo(() => objects.filter((object) => object.type === "actor"), [objects]);
   return (
     <div className="inspector-content">
-      <div className="camera-preview-card">
-        <div className="camera-preview-grid">
-          <span />
-        </div>
-        <div className="camera-preview-meta">
-          <span><span className="live-dot on" /> LIVE</span>
-          <button onClick={() => setViewMode("camera")}>切换机位</button>
-        </div>
-      </div>
       <section className="property-section">
         <h3>摄像机属性</h3>
         <Field label="名称">

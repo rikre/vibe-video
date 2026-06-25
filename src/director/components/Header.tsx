@@ -1,4 +1,4 @@
-import { AlertCircle, CircleDot, Cloud, CloudOff, HelpCircle, LoaderCircle, Maximize2, MoreHorizontal } from "lucide-react";
+import { AlertCircle, CircleDot, Cloud, CloudOff, LoaderCircle, Maximize2 } from "lucide-react";
 import { useDirectorStore } from "../store";
 
 export default function Header() {
@@ -42,14 +42,8 @@ export default function Header() {
         <span className={`save-status ${syncStatus}`} title={syncError ?? "项目已同时保存到本机与项目服务"}>
           {status.icon} {status.label}
         </span>
-        <button className="icon-button" title="帮助">
-          <HelpCircle size={16} />
-        </button>
         <button className="icon-button" title="全屏" onClick={() => document.documentElement.requestFullscreen?.()}>
           <Maximize2 size={16} />
-        </button>
-        <button className="icon-button" title="更多">
-          <MoreHorizontal size={18} />
         </button>
       </div>
     </header>
