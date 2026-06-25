@@ -4,10 +4,11 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, X } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import ProjectList from './components/ProjectList';
 import ProjectDetail from './components/ProjectDetail';
+import DirectorApp from './director/DirectorApp';
 import { INITIAL_PROJECTS } from './data';
 import { Project, SidebarTab, ThemeMode } from './types';
 
@@ -18,6 +19,7 @@ export default function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [projectInitialTab, setProjectInitialTab] = useState<'概览' | '剧本'>('概览');
   const [notice, setNotice] = useState<string | null>(null);
+  const [directorFullscreen, setDirectorFullscreen] = useState(false);
 
   useEffect(() => {
     if (!notice) return;
@@ -26,6 +28,12 @@ export default function App() {
   }, [notice]);
 
   const handleSelectTab = (tab: SidebarTab) => {
+    if (tab === '导演台') {
+      setActiveTab('导演台');
+      setSelectedProjectId(null);
+      setDirectorFullscreen(true);
+      return;
+    }
     if (tab !== '项目') {
       setNotice(`${tab}功能正在开发中，敬请期待`);
       return;
@@ -62,6 +70,28 @@ export default function App() {
   };
 
   const currentProject = projects.find((project) => project.id === selectedProjectId);
+
+  // 导演台全屏模式：覆盖整个视口，独立于主框架
+  if (directorFullscreen) {
+    return (
+      <div className={`app-shell director-host ${theme === 'dark' ? 'theme-dark' : 'theme-light'}`}>
+        <DirectorApp onExit={() => {
+          setDirectorFullscreen(false);
+          setActiveTab('项目');
+        }} />
+        <button
+          className="director-exit-btn"
+          onClick={() => {
+            setDirectorFullscreen(false);
+            setActiveTab('项目');
+          }}
+          title="返回主控台"
+        >
+          <ArrowLeft size={16} /> 返回主控台
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className={`app-shell ${theme === 'dark' ? 'theme-dark' : 'theme-light'}`}>

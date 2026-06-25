@@ -55,6 +55,6 @@ export interface Project {
   activities: Activity[];
 }
 
-export type SidebarTab = '首页' | '创作' | '工具' | '项目' | '资产';
+export type SidebarTab = '首页' | '创作' | '工具' | '项目' | '资产' | '导演台';
 export type ProjectSubTab = '概览' | '剧本' | '资产' | '分镜' | '故事板' | '成片';
 export type ThemeMode = 'dark' | 'light';

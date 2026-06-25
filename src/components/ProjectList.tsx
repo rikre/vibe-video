@@ -8,6 +8,10 @@ import { Search, User, MoreHorizontal, Video, Image as ImageIcon, Plus, Trash2, 
 import { Project, ThemeMode } from '../types';
 import { ALL_MEMBERS } from '../data';
 import emptyProjectMascot from '../assets/images/empty-project-mascot.png';
+import { useProjectFilter } from '../hooks/useProjectFilter';
+import { useCreateProjectDialog } from '../hooks/useCreateProjectDialog';
+import { useRenameDialog } from '../hooks/useRenameDialog';
+import { useInviteDialog } from '../hooks/useInviteDialog';
 
 interface ProjectListProps {
   projects: Project[];
@@ -28,75 +32,28 @@ export default function ProjectList({
   onRenameProject,
   onUpdateProjectMembers,
 }: ProjectListProps) {
-  // Filters state
-  const [searchTerm, setSearchTerm] = useState('');
-  const [memberFilterMode, setMemberFilterMode] = useState<'所有成员' | '由我创建'>('所有成员');
-  const [isMemberDropdownOpen, setIsMemberDropdownOpen] = useState(false);
-  const [ownershipFilter, setOwnershipFilter] = useState<'全部' | '我创建的' | '我协作的'>('全部');
-  
-  // Dialog state
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
-  const [newProjectDesc, setNewProjectDesc] = useState('');
-  const [newProjectType, setNewProjectType] = useState<'剧本模式' | '自由模式'>('剧本模式');
-  const [newProjectEpisodesCount, setNewProjectEpisodesCount] = useState(3);
-  const [newProjectCoverType, setNewProjectCoverType] = useState<'gradient' | 'image'>('gradient');
-  const [newProjectMembers, setNewProjectMembers] = useState<string[]>(['常谦', '张三']);
-  
-  // Script Upload state
-  const [uploadedScriptFile, setUploadedScriptFile] = useState<{ name: string; size: string; content?: string } | null>(null);
-  const [isScriptDragging, setIsScriptDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const {
+    searchTerm,
+    setSearchTerm,
+    memberFilterMode,
+    setMemberFilterMode,
+    isMemberDropdownOpen,
+    setIsMemberDropdownOpen,
+    ownershipFilter,
+    setOwnershipFilter,
+    filteredProjects,
+    memberDropdownRef,
+    createdProjectsCount,
+    collaboratedProjectsCount,
+  } = useProjectFilter(projects);
 
-  const handleScriptDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsScriptDragging(true);
-  };
+  const createDialog = useCreateProjectDialog(onCreateProject);
+  const renameDialog = useRenameDialog(onRenameProject);
+  const inviteDialog = useInviteDialog((projectId, members) => {
+    onUpdateProjectMembers?.(projectId, members);
+  });
 
-  const handleScriptDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsScriptDragging(false);
-  };
-
-  const captureScriptFile = async (file: File) => {
-    const sizeStr = (file.size / 1024 / 1024).toFixed(2) + ' MB';
-    const canReadText = file.type.startsWith('text/') || file.name.toLowerCase().endsWith('.txt');
-    const content = canReadText ? await file.text() : undefined;
-    setUploadedScriptFile({ name: file.name, size: sizeStr, content });
-  };
-
-  const handleScriptDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsScriptDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      void captureScriptFile(e.dataTransfer.files[0]);
-    }
-  };
-
-  const handleScriptFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      void captureScriptFile(e.target.files[0]);
-    }
-  };
-
-  const handleRemoveScriptFile = () => {
-    setUploadedScriptFile(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-  
-  // Custom dialog or inputs for other actions
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
-  const [isRenameOpen, setIsRenameOpen] = useState(false);
-  const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState('');
-
-  // Invite Dialog State
-  const [isInviteOpen, setIsInviteOpen] = useState(false);
-  const [inviteProject, setInviteProject] = useState<Project | null>(null);
-  const [selectedInviteMembers, setSelectedInviteMembers] = useState<string[]>([]);
 
   // Delete Dialog State
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -116,26 +73,7 @@ export default function ProjectList({
     setDeleteTarget(null);
   };
 
-  const startInviteFlow = (project: Project) => {
-    setInviteProject(project);
-    setSelectedInviteMembers([]);
-    setIsInviteOpen(true);
-    setActiveDropdown(null);
-  };
-
-  const handleInviteSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inviteProject) return;
-    const updatedMembers = [...inviteProject.members, ...selectedInviteMembers];
-    if (onUpdateProjectMembers) {
-      onUpdateProjectMembers(inviteProject.id, updatedMembers);
-    }
-    setIsInviteOpen(false);
-    setInviteProject(null);
-  };
-
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const memberDropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -151,74 +89,29 @@ export default function ProjectList({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Filter projects
-  const filteredProjects = projects.filter((project) => {
-    const keyword = searchTerm.trim().toLowerCase();
-    const matchesSearch =
-      !keyword ||
-      project.name.toLowerCase().includes(keyword) ||
-      project.members.some((member) => member.toLowerCase().includes(keyword));
-    const matchesMember =
-      memberFilterMode === '所有成员' ||
-      project.members.includes('常谦') ||
-      project.id.startsWith('custom-');
-    const createdByMe = project.members[0] === '常谦' || project.id.startsWith('custom-');
-    const matchesOwnership =
-      ownershipFilter === '全部' ||
-      (ownershipFilter === '我创建的' ? createdByMe : !createdByMe);
-    return matchesSearch && matchesMember && matchesOwnership;
-  });
-
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmitting) return;
-    if (!newProjectName.trim()) return;
-    if (newProjectType === '剧本模式' && !uploadedScriptFile) return;
-    if (newProjectType === '自由模式' && (!Number.isFinite(newProjectEpisodesCount) || newProjectEpisodesCount < 1)) return;
-    
-    setIsSubmitting(true);
-    
-    onCreateProject({
-      name: newProjectName,
-      tag: '创作中',
-      coverType: newProjectCoverType,
-      members: newProjectMembers,
-      description: newProjectDesc || '新创建的短剧项目概括描述。',
-      projectType: newProjectType,
-      plannedEpisodesCount: newProjectType === '自由模式' ? newProjectEpisodesCount : undefined,
-      scriptFileName: uploadedScriptFile?.name,
-      scriptContent: uploadedScriptFile?.content,
-      coverUrl: newProjectCoverType === 'image' 
-        ? 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=400&auto=format&fit=crop'
-        : undefined,
-    });
-
-    // Reset and close
-    setNewProjectName('');
-    setNewProjectDesc('');
-    setNewProjectCoverType('gradient');
-    setNewProjectType('剧本模式');
-    setNewProjectEpisodesCount(3);
-    setNewProjectMembers(['常谦', '张三']);
-    setUploadedScriptFile(null);
-    setIsCreateOpen(false);
-    setIsSubmitting(false);
+    createDialog.submit();
   };
 
   const startRenameFlow = (project: Project) => {
-    setRenameTargetId(project.id);
-    setRenameValue(project.name);
-    setIsRenameOpen(true);
+    renameDialog.open(project);
     setActiveDropdown(null);
   };
 
   const handleRenameSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (renameTargetId && renameValue.trim()) {
-      onRenameProject(renameTargetId, renameValue.trim());
-      setIsRenameOpen(false);
-      setRenameTargetId(null);
-    }
+    renameDialog.submit();
+  };
+
+  const startInviteFlow = (project: Project) => {
+    inviteDialog.open(project);
+    setActiveDropdown(null);
+  };
+
+  const handleInviteSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    inviteDialog.submit();
   };
 
   const formatProjectDate = (createdAt: string) => {
@@ -232,8 +125,6 @@ export default function ProjectList({
     if (diffDays < 365) return Math.floor(diffDays / 30) + '个月前';
     return Math.floor(diffDays / 365) + '年前';
   };
-  const createdProjectsCount = projects.filter((project) => project.members[0] === '常谦' || project.id.startsWith('custom-')).length;
-  const collaboratedProjectsCount = projects.length - createdProjectsCount;
 
   return (
     <div className={`project-library flex-1 min-h-screen px-6 md:px-10 py-8 transition-theme ${
@@ -264,7 +155,7 @@ export default function ProjectList({
             {searchTerm && <button onClick={() => setSearchTerm('')}>清除</button>}
           </div>
           <button className="board-sort-button" type="button"><ArrowDownUp size={14} />按修改时间</button>
-          <button className="board-folder-button" type="button" onClick={() => setIsCreateOpen(true)}><Plus size={14} />创建项目</button>
+          <button className="board-folder-button" type="button" onClick={() => createDialog.open()}><Plus size={14} />创建项目</button>
         </div>
       </section>
 
@@ -273,7 +164,7 @@ export default function ProjectList({
           <span>项目数量</span>
           <strong>{projects.length}</strong>
         </div>
-        <button onClick={() => setIsCreateOpen(true)} className="primary-action command-create-action" id="btn-create-project">
+        <button onClick={() => createDialog.open()} className="primary-action command-create-action" id="btn-create-project">
           <Plus size={16} />新增项目
         </button>
       </section>
@@ -496,7 +387,7 @@ export default function ProjectList({
             <h3>{projects.length === 0 ? '这里在等你的第一部' : '没有找到匹配的项目'}</h3>
             <p>{projects.length === 0 ? '从一个想法开始，创建你的第一个短剧项目。' : '试试调整搜索关键词或成员筛选。'}</p>
             {projects.length === 0 && (
-              <button onClick={() => setIsCreateOpen(true)} className="empty-state-action">
+              <button onClick={() => createDialog.open()} className="empty-state-action">
                 <Plus size={16} />
                 创建第一个项目
               </button>
@@ -506,25 +397,25 @@ export default function ProjectList({
       </div>
 
       {/* 1. Modal: Rename Project */}
-      {isRenameOpen && (
+      {renameDialog.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className={`w-full max-w-md p-6 rounded-2xl border shadow-2xl animate-fade-in ${
             theme === 'dark' ? 'bg-[#141317] border-zinc-800 text-white' : 'bg-white border-zinc-200 text-zinc-900'
           }`}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold">编辑项目名称</h3>
-              <button onClick={() => setIsRenameOpen(false)} className="text-zinc-500 hover:text-zinc-300">
+              <button onClick={() => renameDialog.close()} className="text-zinc-500 hover:text-zinc-300">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <form onSubmit={handleRenameSubmit}>
               <input
                 type="text"
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
+                value={renameDialog.value}
+                onChange={(e) => renameDialog.setValue(e.target.value)}
                 className={`w-full px-4 py-3 rounded-lg border outline-none transition-all mb-4 focus:ring-1 ${
-                  theme === 'dark' 
-                    ? 'bg-[#1a191e] border-zinc-850 text-white focus:border-zinc-700 focus:ring-zinc-700' 
+                  theme === 'dark'
+                    ? 'bg-[#1a191e] border-zinc-850 text-white focus:border-zinc-700 focus:ring-zinc-700'
                     : 'bg-zinc-50 border-zinc-200 text-zinc-900 focus:border-zinc-400 focus:ring-zinc-450'
                 }`}
                 placeholder="请输入项目名称"
@@ -533,7 +424,7 @@ export default function ProjectList({
               <div className="flex justify-end gap-3 text-sm font-semibold">
                 <button
                   type="button"
-                  onClick={() => setIsRenameOpen(false)}
+                  onClick={() => renameDialog.close()}
                   className={`px-4 py-2 rounded-lg cursor-pointer ${
                     theme === 'dark' ? 'bg-zinc-800/40 text-zinc-400 hover:bg-zinc-800/80' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
                   }`}
@@ -550,7 +441,7 @@ export default function ProjectList({
       )}
 
       {/* 2. Modal: Create Project */}
-      {isCreateOpen && (
+      {createDialog.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
           <div className={`w-full max-w-lg p-6 rounded-3xl border shadow-2xl animate-fade-in ${
             theme === 'dark' ? 'bg-[#141317] border-zinc-800 text-white' : 'bg-white border-zinc-200 text-zinc-900'
@@ -560,7 +451,7 @@ export default function ProjectList({
                 <Sparkles className="w-5.5 h-5.5 text-var(--accent)" />
                 <h3 className="text-lg font-bold">创建项目</h3>
               </div>
-              <button onClick={() => setIsCreateOpen(false)} className="text-zinc-500 hover:text-zinc-300">
+              <button onClick={() => createDialog.close()} className="text-zinc-500 hover:text-zinc-300">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -574,11 +465,11 @@ export default function ProjectList({
                   type="text"
                   required
                   placeholder="如: 媳妇井 / 绝境逃生"
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
+                  value={createDialog.name}
+                  onChange={(e) => createDialog.setName(e.target.value)}
                   className={`w-full px-4 py-2.5 rounded-lg border outline-none transition-all ${
-                    theme === 'dark' 
-                      ? 'bg-[#1a191e] border-zinc-850 text-white focus:border-zinc-700' 
+                    theme === 'dark'
+                      ? 'bg-[#1a191e] border-zinc-850 text-white focus:border-zinc-700'
                       : 'bg-zinc-50 border-zinc-200 text-zinc-900 focus:border-zinc-400'
                   }`}
                 />
@@ -591,8 +482,8 @@ export default function ProjectList({
                 <textarea
                   rows={2}
                   placeholder="一句话描述项目定位，将展示在概览页全剧总览中"
-                  value={newProjectDesc}
-                  onChange={(e) => setNewProjectDesc(e.target.value)}
+                  value={createDialog.description}
+                  onChange={(e) => createDialog.setDescription(e.target.value)}
                   className={`w-full px-4 py-2.5 rounded-lg border outline-none transition-all resize-none ${
                     theme === 'dark'
                       ? 'bg-[#1a191e] border-zinc-850 text-white focus:border-zinc-700 placeholder-zinc-600'
@@ -611,12 +502,12 @@ export default function ProjectList({
                       key={mode}
                       type="button"
                       onClick={() => {
-                        setNewProjectType(mode);
+                        createDialog.setProjectType(mode);
                         if (mode === '自由模式') {
-                          handleRemoveScriptFile();
+                          createDialog.removeFile();
                         }
                       }}
-                      className={`creation-mode-card ${newProjectType === mode ? 'active' : ''}`}
+                      className={`creation-mode-card ${createDialog.projectType === mode ? 'active' : ''}`}
                     >
                       <span>{mode}</span>
                       <small>{mode === '剧本模式' ? '上传剧本，自动解析' : '输入集数，自由创作'}</small>
@@ -626,7 +517,7 @@ export default function ProjectList({
               </div>
 
               {/* Upload Screenplay Module */}
-              {newProjectType === '剧本模式' ? (
+              {createDialog.projectType === '剧本模式' ? (
               <div>
                 <label className="block text-xs font-semibold text-zinc-400 mb-1.5 uppercase tracking-wider">
                   上传剧本 &lt;必填&gt;
@@ -634,20 +525,20 @@ export default function ProjectList({
                 
                 <input
                   type="file"
-                  ref={fileInputRef}
-                  onChange={handleScriptFileSelect}
+                  ref={createDialog.fileInputRef}
+                  onChange={createDialog.handleFileSelect}
                   accept=".txt,.pdf,.docx,.doc"
                   className="hidden"
                 />
 
-                {!uploadedScriptFile ? (
+                {!createDialog.uploadedFile ? (
                   <div
-                    onDragOver={handleScriptDragOver}
-                    onDragLeave={handleScriptDragLeave}
-                    onDrop={handleScriptDrop}
-                    onClick={() => fileInputRef.current?.click()}
+                    onDragOver={createDialog.handleDragOver}
+                    onDragLeave={createDialog.handleDragLeave}
+                    onDrop={createDialog.handleDrop}
+                    onClick={() => createDialog.fileInputRef.current?.click()}
                     className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all ${
-                      isScriptDragging
+                      createDialog.isDragging
                         ? (theme === 'dark' ? 'border-[var(--accent)] bg-[var(--accent)]/5' : 'border-emerald-500 bg-emerald-50/30')
                         : (theme === 'dark' ? 'border-zinc-800 hover:border-zinc-750 bg-[#17161b]/30' : 'border-[#e4e4e7] hover:border-zinc-300 bg-zinc-50/50')
                     }`}
@@ -678,16 +569,16 @@ export default function ProjectList({
                       </div>
                       <div className="min-w-0">
                         <p className={`text-xs font-semibold truncate ${theme === 'dark' ? 'text-zinc-200' : 'text-zinc-800'}`}>
-                          {uploadedScriptFile.name}
+                          {createDialog.uploadedFile.name}
                         </p>
                         <p className="text-[10px] text-zinc-500 font-mono mt-0.5">
-                          {uploadedScriptFile.size} • 已检测
+                          {createDialog.uploadedFile.size} • 已检测
                         </p>
                       </div>
                     </div>
                     <button
                       type="button"
-                      onClick={handleRemoveScriptFile}
+                      onClick={createDialog.removeFile}
                       className="text-[11px] font-semibold text-red-400 hover:text-red-300 px-2 py-1 hover:bg-red-500/10 rounded-lg cursor-pointer transition-all"
                     >
                       删除
@@ -705,8 +596,8 @@ export default function ProjectList({
                   min={1}
                   max={200}
                   required
-                  value={newProjectEpisodesCount}
-                  onChange={(e) => setNewProjectEpisodesCount(Math.max(1, Number(e.target.value) || 1))}
+                  value={createDialog.episodesCount}
+                  onChange={(e) => createDialog.setEpisodesCount(Math.max(1, Number(e.target.value) || 1))}
                   className={`w-full px-4 py-2.5 rounded-lg border outline-none transition-all ${
                     theme === 'dark'
                       ? 'bg-[#1a191e] border-zinc-850 text-white focus:border-zinc-700'
@@ -721,7 +612,7 @@ export default function ProjectList({
               <div className="pt-4 flex justify-end gap-3 text-sm font-semibold">
                 <button
                   type="button"
-                  onClick={() => setIsCreateOpen(false)}
+                  onClick={() => createDialog.close()}
                   className={`px-4 py-2.5 rounded-lg cursor-pointer ${
                     theme === 'dark' ? 'bg-zinc-800/40 text-zinc-400 hover:bg-zinc-800/80' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
                   }`}
@@ -730,14 +621,14 @@ export default function ProjectList({
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting || (newProjectType === '剧本模式' && !uploadedScriptFile)}
+                  disabled={createDialog.projectType === '剧本模式' && !createDialog.uploadedFile}
                   className={`px-6 py-2.5 rounded-lg font-semibold cursor-pointer active:translate-y-0 shadow-lg ${
                     theme === 'dark'
                       ? 'bg-[var(--accent)] hover:bg-[#c3ec44] text-[#000000] shadow-[var(--accent)]/10'
                       : 'bg-var(--accent) hover:bg-emerald-500 text-white shadow-emerald-500/10'
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
-                  {isSubmitting ? '创建中…' : '创建项目'}
+                  创建项目
                 </button>
               </div>
             </form>
@@ -746,7 +637,7 @@ export default function ProjectList({
       )}
 
       {/* 3. Modal: Invite Members */}
-      {isInviteOpen && inviteProject && (
+      {inviteDialog.isOpen && inviteDialog.project && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className={`w-full max-w-md p-6 rounded-2xl border shadow-2xl animate-fade-in ${
             theme === 'dark' ? 'bg-[#141317] border-zinc-800 text-white' : 'bg-white border-zinc-200 text-zinc-900'
@@ -758,10 +649,7 @@ export default function ProjectList({
               </div>
               <button 
                 type="button"
-                onClick={() => {
-                  setIsInviteOpen(false);
-                  setInviteProject(null);
-                }} 
+                onClick={inviteDialog.close} 
                 className="text-zinc-500 hover:text-zinc-300 cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -771,7 +659,7 @@ export default function ProjectList({
             <div className="mb-4">
               <span className="text-xs font-semibold text-zinc-405 block mb-1">当前项目</span>
               <p className={`text-base font-semibold ${theme === 'dark' ? 'text-zinc-100' : 'text-zinc-900'}`}>
-                {inviteProject.name}
+                {inviteDialog.project.name}
               </p>
             </div>
 
@@ -784,7 +672,7 @@ export default function ProjectList({
                 {/* Find candidate members who are NOT in this project */}
                 {(() => {
                   const candidates = ALL_MEMBERS.filter(
-                    m => m !== '所有成员' && !inviteProject.members.includes(m)
+                    m => m !== '所有成员' && !inviteDialog.project!.members.includes(m)
                   );
 
                   if (candidates.length === 0) {
@@ -798,18 +686,12 @@ export default function ProjectList({
                   return (
                     <div className="flex flex-wrap gap-2.5 max-h-48 overflow-y-auto py-1">
                       {candidates.map((member) => {
-                        const isSelected = selectedInviteMembers.includes(member);
+                        const isSelected = inviteDialog.selectedMembers.includes(member);
                         return (
                           <button
                             key={member}
                             type="button"
-                            onClick={() => {
-                              if (isSelected) {
-                                setSelectedInviteMembers(selectedInviteMembers.filter(m => m !== member));
-                              } else {
-                                setSelectedInviteMembers([...selectedInviteMembers, member]);
-                              }
-                            }}
+                            onClick={() => inviteDialog.toggleMember(member)}
                             className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium border cursor-pointer select-none transition-all ${
                               isSelected
                                 ? 'border-var(--accent) bg-var(--accent)/20 text-var(--accent)'
@@ -829,10 +711,7 @@ export default function ProjectList({
               <div className="pt-2 flex justify-end gap-3 text-sm font-semibold">
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsInviteOpen(false);
-                    setInviteProject(null);
-                  }}
+                  onClick={inviteDialog.close}
                   className={`px-4 py-2 rounded-lg cursor-pointer ${
                     theme === 'dark' ? 'bg-zinc-800/40 text-zinc-400 hover:bg-zinc-800/80' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
                   }`}
@@ -841,9 +720,9 @@ export default function ProjectList({
                 </button>
                 <button 
                   type="submit" 
-                  disabled={selectedInviteMembers.length === 0}
+                  disabled={inviteDialog.selectedMembers.length === 0}
                   className={`px-5 py-2 rounded-lg text-white shadow-lg shadow-var(--accent)/10 transition-all ${
-                    selectedInviteMembers.length === 0 
+                    inviteDialog.selectedMembers.length === 0 
                       ? 'bg-var(--accent)/40 cursor-not-allowed opacity-50' 
                       : 'bg-var(--accent) hover:bg-var(--accent) cursor-pointer'
                   }`}

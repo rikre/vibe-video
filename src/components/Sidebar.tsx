@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Archive, FolderKanban, Home, LayoutGrid, Moon, Sparkles, Sun, WandSparkles } from 'lucide-react';
+import { Archive, Clapperboard, FolderKanban, Home, LayoutGrid, Moon, Sparkles, Sun, WandSparkles } from 'lucide-react';
 import { SidebarTab, ThemeMode } from '../types';
 
 interface SidebarProps {
@@ -19,6 +19,7 @@ const menuItems = [
   { id: '创作', label: '创作', icon: Sparkles },
   { id: '工具', label: '工具', icon: LayoutGrid },
   { id: '项目', label: '项目', icon: FolderKanban },
+  { id: '导演台', label: '导演台', icon: Clapperboard },
   { id: '资产', label: '资产', icon: Archive },
 ] as const;
 
